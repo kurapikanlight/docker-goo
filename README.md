@@ -1,6 +1,6 @@
 <div align="center">
 
-# Docker-Goo
+<img src="logo/docker-goo.png" alt="Docker-Goo" width="420">
 
 ### Your Docker workspace. Inside your terminal.
 
@@ -13,8 +13,6 @@ A Linux-first terminal interface for managing your existing Docker Engine.
 [Installation](#installation) · [Features](#features) · [Shortcuts](#keyboard-shortcuts) · [Screenshots](#screenshots) · [Report an issue](https://github.com/kurapikanlight/docker-goo/issues)
 
 <img src="previews/home.png" alt="Docker-Goo home screen" width="100%">
-
-**Made by [Kafeyn](https://github.com/kurapikanlight)**
 
 </div>
 
