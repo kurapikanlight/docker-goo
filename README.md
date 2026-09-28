@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="logo/icon.png" alt="Docker-Goo icon" width="120">
-
-<img src="logo/docker-goo.png" alt="Docker-Goo" width="420">
+<img src="logo/icon.png" alt="" height="100" align="absmiddle">&nbsp;&nbsp;&nbsp;&nbsp;<img src="logo/docker-goo.png" alt="Docker-Goo" height="80" align="absmiddle">
 
 ### Your Docker workspace. Inside your terminal.
 
@@ -46,6 +44,15 @@ It connects to the Docker Engine already installed on your system. It does not b
 Pulling/removing images, removing volumes/networks, pruning, and building images are available through Docker commands in the `$` console. Dedicated controls for these operations are not all implemented yet.
 
 The interface includes mouse support, search, a permanent navigation drawer, three themes, and layouts that adapt to terminal size.
+
+
+It launches by:
+
+
+```bash
+docker-goo
+```
+
 
 ## Installation
 
