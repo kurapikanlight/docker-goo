@@ -3,6 +3,7 @@
 <img src="logo/icon.png" alt="Docker-Goo icon" width="120">
 
 <img src="logo/docker-goo.png" alt="Docker-Goo" width="420">
+
 ### Your Docker workspace. Inside your terminal.
 
 A Linux-first terminal interface for managing your existing Docker Engine.
