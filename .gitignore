@@ -1,0 +1,9 @@
+/target/
+*.sock
+*.log
+*.swp
+*.swo
+.DS_Store
+__pycache__/
+*.py[cod]
+/docker-goo-report-*.json
