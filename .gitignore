@@ -3,8 +3,6 @@
 /manual-compose-test/
 /TASKS.md
 /VALIDATION.md
-/README.md
 /LICENSE
-/docker-goo-report-*.json
 __pycache__/
 *.sock
