@@ -406,7 +406,7 @@ pub async fn run(
                     if app.dialogs.shell.is_some() && mouse.kind==MouseEventKind::Down(crossterm::event::MouseButton::Left) && app.dialogs.native_area.is_some_and(|a|a.contains((mouse.column,mouse.row).into())) {
                         event=Event::Key(crossterm::event::KeyEvent::new(KeyCode::Enter,KeyModifiers::CONTROL));
                     } else if app.dialogs.form.is_some() && mouse.kind==MouseEventKind::Down(crossterm::event::MouseButton::Left) && app.dialogs.create_area.is_some_and(|a|a.contains((mouse.column,mouse.row).into())) {
-                        if let Some(form)=app.dialogs.form.as_mut(){form.focus=7;}
+                        if let Some(form)=app.dialogs.form.as_mut(){form.focus=8;}
                         event=Event::Key(crossterm::event::KeyEvent::new(KeyCode::Enter,KeyModifiers::NONE));
                     } else if dialogs::mouse(&mut app,*mouse) {continue;}
                 }

@@ -80,6 +80,7 @@ pub(super) fn config(spec: &RunSpec) -> Result<Config<String>> {
         env: Some(env),
         tty: Some(spec.interactive),
         open_stdin: Some(spec.interactive),
+        stdin_once: Some(false),
         exposed_ports: Some(exposed),
         host_config: Some(HostConfig {
             port_bindings: Some(bindings.into_iter().map(|(k, v)| (k, Some(v))).collect()),
@@ -147,6 +148,8 @@ mod tests {
         };
         let result = config(&spec).unwrap();
         assert_eq!(result.open_stdin, Some(true));
+        assert_eq!(result.tty, Some(true));
+        assert_eq!(result.stdin_once, Some(false));
         assert_eq!(result.env.unwrap(), ["A=hello world", "B=2"]);
         assert_eq!(
             result.host_config.unwrap().port_bindings.unwrap()["80/tcp"]

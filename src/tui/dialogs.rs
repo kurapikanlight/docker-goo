@@ -13,6 +13,10 @@ pub(super) struct Form {
     pub cursors: [usize; 7],
 }
 impl Form {
+    fn toggle_interactive(&mut self) {
+        self.shell = !self.shell;
+    }
+
     pub fn new(image: String) -> Self {
         Self {
             cursors: [image.len(), 0, 0, 0, 0, 0, 0],
@@ -41,6 +45,7 @@ pub(super) struct Dialogs {
     pub follow_output: bool,
     pub form_error: String,
     pub create_area: Option<Rect>,
+    pub interactive_area: Option<Rect>,
     pub native_area: Option<Rect>,
     pub form_areas: Vec<Rect>,
     pub suggestion_rows: Vec<(Rect, usize)>,
@@ -225,18 +230,15 @@ pub(super) fn key(
         }
         match code {
             KeyCode::Esc => app.dialogs.form = None,
-            KeyCode::Tab | KeyCode::Down => form.focus = (form.focus + 1) % 8,
-            KeyCode::BackTab | KeyCode::Up => form.focus = (form.focus + 7) % 8,
+            KeyCode::Tab | KeyCode::Down => form.focus = (form.focus + 1) % 9,
+            KeyCode::BackTab | KeyCode::Up => form.focus = (form.focus + 8) % 9,
             KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                form.shell = !form.shell;
-                if form.shell && form.fields[2].is_empty() {
-                    form.fields[2] = "/bin/sh".into();
-                } else if !form.shell && form.fields[2] == "/bin/sh" {
-                    form.fields[2].clear();
-                }
-                form.cursors[2] = form.fields[2].len();
+                form.toggle_interactive();
             }
-            KeyCode::Enter if form.focus == 7 => {
+            KeyCode::Enter | KeyCode::Char(' ') if form.focus == 7 => {
+                form.toggle_interactive();
+            }
+            KeyCode::Enter if form.focus == 8 => {
                 if app.busy || !app.online {
                     app.dialogs.form_error = "An online engine is required".into();
                     return true;
@@ -266,7 +268,7 @@ pub(super) fn key(
                 app.dialogs.image_query.clear();
                 app.dialogs.image_index = 0;
             }
-            KeyCode::Enter => form.focus = (form.focus + 1) % 8,
+            KeyCode::Enter => form.focus = (form.focus + 1) % 9,
             KeyCode::Backspace if form.focus < 7 => {
                 form.fields[form.focus].pop();
             }
@@ -572,6 +574,7 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
             .push((Rect::new(link.x, link.y, 5, 1), KeyCode::Char('w')));
     }
     app.dialogs.create_area = None;
+    app.dialogs.interactive_area = None;
     app.dialogs.form_areas.clear();
     if let Some(form) = &app.dialogs.form {
         panel(f, a, " New container ", String::new(), 0);
@@ -587,13 +590,13 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
         let top = Rect::new(a.x + 1, a.y + 1, a.width.saturating_sub(2), 1);
         f.render_widget(
             Paragraph::new(format!(
-                "{} · [Ctrl+P] - Preset · [Tab] - Next",
+                "{} · [Ctrl+P] - Toggle -it · [Tab] - Next",
                 if form.shell { "Shell / TTY" } else { "Service" }
             ))
             .style(theme::text()),
             top,
         );
-        let count = a.height.saturating_sub(8).clamp(1, 7) as usize;
+        let count = a.height.saturating_sub(9).clamp(1, 7) as usize;
         let first = form.focus.min(6).saturating_sub(count - 1);
         app.dialogs.form_areas = vec![Rect::default(); 7];
         for (i, label) in labels.iter().enumerate().skip(first).take(count) {
@@ -617,6 +620,24 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
                 highlight(f, row);
             }
         }
+        let interactive = Rect::new(
+            a.x + 1,
+            a.bottom().saturating_sub(5),
+            a.width.saturating_sub(2),
+            1,
+        );
+        f.render_widget(
+            Paragraph::new(format!(
+                "[{}] Interactive terminal (-it) · [Space] - Toggle",
+                if form.shell { "x" } else { " " }
+            ))
+            .style(theme::text()),
+            interactive,
+        );
+        app.dialogs.interactive_area = Some(interactive);
+        if form.focus == 7 {
+            highlight(f, interactive);
+        }
         let create = Rect::new(
             a.x + 1,
             a.bottom().saturating_sub(4),
@@ -633,7 +654,7 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
             create,
         );
         app.dialogs.create_area = Some(create);
-        if form.focus == 7 {
+        if form.focus == 8 {
             highlight(f, create);
         }
         let status = if app.dialogs.form_error.is_empty() {
@@ -1008,6 +1029,15 @@ pub(super) fn mouse(app: &mut App, mouse: crossterm::event::MouseEvent) -> bool 
             }
         }
     } else if !app.busy {
+        if app.dialogs.interactive_area
+            .is_some_and(|r| r.contains((mouse.column, mouse.row).into()))
+        {
+            if let Some(form) = app.dialogs.form.as_mut() {
+                form.focus = 7;
+                form.toggle_interactive();
+            }
+            return true;
+        }
         if let Some(i) = app
             .dialogs
             .form_areas
