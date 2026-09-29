@@ -209,14 +209,22 @@ install_release_binary() {
         if have install; then
             install -m 0755 "$binary_file" "$target" || fail "Could not install to $target."
         else
-            cp "$binary_file" "$target" && chmod 0755 "$target" || fail "Could not install to $target."
+            if cp "$binary_file" "$target" && chmod 0755 "$target"; then
+                :
+            else
+                fail "Could not install to $target."
+            fi
         fi
     elif have sudo && [ -d /usr/local/bin ]; then
         target="/usr/local/bin/$BINARY_NAME"
         if have install; then
             run_root install -m 0755 "$binary_file" "$target" || fail "Could not install to $target."
         else
-            run_root cp "$binary_file" "$target" && run_root chmod 0755 "$target" || fail "Could not install to $target."
+            if run_root cp "$binary_file" "$target" && run_root chmod 0755 "$target"; then
+                :
+            else
+                fail "Could not install to $target."
+            fi
         fi
     else
         mkdir -p "$HOME/.local/bin" || fail "Could not create $HOME/.local/bin."
@@ -224,7 +232,11 @@ install_release_binary() {
         if have install; then
             install -m 0755 "$binary_file" "$target" || fail "Could not install to $target."
         else
-            cp "$binary_file" "$target" && chmod 0755 "$target" || fail "Could not install to $target."
+            if cp "$binary_file" "$target" && chmod 0755 "$target"; then
+                :
+            else
+                fail "Could not install to $target."
+            fi
         fi
     fi
 
