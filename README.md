@@ -24,8 +24,6 @@ It connects to the Docker Engine already installed on your system. It does not b
 
 **No Docker-Goo account. No subscriptions. No telemetry. No cloud dependency.**
 
-> Early release. Build and run locally on Linux. Distribution-specific installation commands are provided below; compatibility across every distribution and terminal is still being validated.
-
 ## Features
 
 | Workspace | What you can do |
@@ -45,47 +43,46 @@ Pulling/removing images, removing volumes/networks, pruning, and building images
 
 The interface includes mouse support, search, a permanent navigation drawer, three themes, and layouts that adapt to terminal size.
 
+## Installation
 
-It launches by:
+### Quick install
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/kurapikanlight/docker-goo/master/install.sh | sh
+```
+
+Then launch from any directory:
 
 ```bash
 docker-goo
 ```
 
+**[How does the installer work? →](INSTALLATION.md)**
 
-## Installation
+The installer detects Linux, CPU architecture, Docker/Compose availability, downloads the matching precompiled release binary, verifies its SHA-256 checksum, installs it into `PATH`, and runs `docker-goo --check`.
 
-### 1. Check Docker
+Normal users do **not** need Rust, Cargo, GCC, Make, Git, or the source repository.
 
-Install **Docker Engine** using the instructions for your distribution:
+### Manual installation / Build from source
 
-- [Fedora](https://docs.docker.com/engine/install/fedora/)
-- [Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
-- [Debian](https://docs.docker.com/engine/install/debian/)
-- [Other distributions and derivatives](https://docs.docker.com/engine/install/)
+Use this only when you want to build Docker-Goo yourself or no release binary is available for your CPU.
 
-For Arch, openSUSE, and NixOS, use your distribution's Docker package/module. Linux Mint users should follow the instructions appropriate to their Ubuntu or Debian base.
+Docker-Goo currently requires **Rust 1.98 or newer**.
 
-Verify that your normal user can access the intended engine:
+#### Docker Engine and Compose
+
+Install Docker Engine with your distribution's normal mechanism, then verify:
 
 ```bash
 docker info
-```
-
-Compose support additionally requires:
-
-```bash
 docker compose version
 ```
 
-For access setup, see Docker's [Linux post-installation guide](https://docs.docker.com/engine/install/linux-postinstall/) or [rootless mode](https://docs.docker.com/engine/security/rootless/). Membership in the `docker` group grants root-level privileges.
+For access setup, see Docker's Linux post-installation or rootless-mode documentation. Membership in the `docker` group grants root-level Docker control.
 
-### 2. Install build tools
+#### Build tools
 
-Choose your distribution.
-
-**Ubuntu · Debian · Linux Mint**
+**Ubuntu / Debian / Linux Mint**
 
 ```bash
 sudo apt update
@@ -112,39 +109,24 @@ sudo zypper install gcc make curl git
 
 **NixOS**
 
-Use a development shell and follow the NixOS Rust guidance:
-
 ```bash
 nix-shell -p rustup gcc git pkg-config
 rustup default stable
 ```
 
-Run the installation commands below inside that shell. See the [NixOS Rust guide](https://wiki.nixos.org/wiki/Rust) for a persistent development environment.
-
-### 3. Install Rust
-
-The current project requires **Rust 1.98 or newer**.
-
-On conventional Linux distributions, install Rust using [rustup](https://rust-lang.org/tools/install/):
+#### Rust and Docker-Goo
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Restart your terminal, then verify:
+Restart your terminal or load Rust into the current Bash/Zsh session:
 
 ```bash
-rustc --version
-cargo --version
+source "$HOME/.cargo/env"
 ```
 
-If you already use rustup, update your stable toolchain:
-
-```bash
-rustup update stable
-```
-
-### 4. Install Docker-Goo
+Then install:
 
 ```bash
 git clone https://github.com/kurapikanlight/docker-goo.git
@@ -152,21 +134,7 @@ cd docker-goo
 cargo install --path . --locked
 ```
 
-Launch from any directory:
-
-```bash
-docker-goo
-```
-
-Cargo installs the executable into `~/.cargo/bin`. If the command is not found, ensure that directory is in your shell's `PATH`.
-
-For Bash or Zsh, you can load Rust's environment into the current terminal:
-
-```bash
-source "$HOME/.cargo/env"
-```
-
-No `sudo` is needed for the Cargo installation.
+Cargo installs the executable into `~/.cargo/bin`.
 
 ### Optional desktop integration
 
@@ -174,22 +142,16 @@ No `sudo` is needed for the Cargo installation.
 - **Right-click / Ctrl+V clipboard paste:** install `wl-clipboard` on Wayland, or `xclip`/`xsel` on X11.
 - Terminal-provided paste, commonly `Ctrl+Shift+V`, is also supported.
 
-For example, on Fedora Wayland:
+Docker-Goo's core interface does not depend on GNOME, KDE, Hyprland, Sway, XFCE, Cinnamon, or another desktop environment.
 
-```bash
-sudo dnf install xdg-utils wl-clipboard
-```
-
-Docker-Goo's core interface does not depend on GNOME, KDE, Hyprland, Sway, XFCE, or Cinnamon.
-
-## First launch
+## Quick start
 
 ```bash
 docker-goo
 ```
 
 1. Open **Containers** with `c`.
-2. Select a container using the arrow keys.
+2. Select a container with the arrow keys.
 3. Press `l` for logs, `g` for stats, or `e` for inspect.
 4. Press `b` to choose a container shell.
 5. Press `$` to open the command console.
@@ -230,7 +192,7 @@ Shortcuts depend on the active page or dialog.
 | `[?]` | Help |
 | `[q]` | Quit |
 
-## Create a container
+## Creating containers
 
 Press `n`, choose an image, and configure the form.
 
@@ -249,7 +211,7 @@ Use `Tab` to move between fields. Select **CREATE AND START** to submit. Errors 
 
 `Ctrl+P` switches between Service and Shell presets. Missing images can be pulled during creation.
 
-## Compose projects
+## Compose
 
 Docker-Goo runs an existing `.yaml` or `.yml` file.
 
@@ -269,9 +231,9 @@ docker compose -f /path/to/compose.yaml ps
 docker compose -f /path/to/compose.yaml down
 ```
 
-## The `$` console
+## Command console
 
-The console supports Docker commands and ordinary host commands such as `pwd`, `ls`, and `cd`.
+The `$` console supports Docker commands and ordinary host commands such as `pwd`, `ls`, and `cd`.
 
 ```bash
 docker pull ubuntu:24.04
@@ -366,23 +328,40 @@ The previews below use sample data.
 <summary><strong>Explore more screens</strong></summary>
 
 ### Images
+
 ![Images](previews/images.png)
 
 ### Create a container
+
 ![Create form](previews/create.png)
 
 ### Compose
+
 ![Compose](previews/compose.png)
 
 ### Command console
+
 ![Console](previews/console.png)
 
 ### Themes
+
 ![Theme picker](previews/themes.png)
 
 </details>
 
-## Update
+## Updating
+
+### Binary installation
+
+Rerun the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kurapikanlight/docker-goo/master/install.sh | sh
+```
+
+This replaces only the Docker-Goo executable. It does not remove Docker Engine or any Docker resources.
+
+### Source installation
 
 From your cloned repository:
 
@@ -391,21 +370,35 @@ git pull --ff-only
 cargo install --path . --locked --force
 ```
 
-## Uninstall
+## Uninstalling
+
+### Binary installation
+
+```bash
+sudo rm -f /usr/local/bin/docker-goo
+```
+
+For a user-local installation:
+
+```bash
+rm -f ~/.local/bin/docker-goo
+```
+
+### Cargo installation
 
 ```bash
 cargo uninstall docker-goo
 ```
 
-Uninstalling Docker-Goo does not remove Docker Engine, containers, images, volumes, or networks.
+Uninstalling Docker-Goo does not remove Docker Engine, containers, images, volumes, networks, contexts, or Compose files.
 
 ## Troubleshooting
 
 | Problem | Check |
 | --- | --- |
-| `docker-goo: command not found` | Ensure `~/.cargo/bin` is in `PATH` |
+| `docker-goo: command not found` | Check `/usr/local/bin`, `~/.local/bin`, `~/.cargo/bin`, and your `PATH` |
 | Rust version rejected | Update Rust and check `rustc --version` |
-| Engine offline | Run `docker info` and `docker-goo --check`; check daemon, socket permissions, and context |
+| Engine offline | Run `docker info` and `docker-goo --check`; check daemon, socket permissions, rootless socket, and context |
 | Compose unavailable | Verify `docker compose version` |
 | Browser does not open | Install `xdg-utils`; check the port serves HTTP/HTTPS |
 | Clipboard paste unavailable | Install the clipboard helper appropriate to Wayland or X11 |
@@ -413,6 +406,8 @@ Uninstalling Docker-Goo does not remove Docker Engine, containers, images, volum
 | Empty or cramped panels | Enlarge the terminal |
 | CPU exceeds 100% | Containers can use multiple CPU cores |
 | Network counters keep increasing | They show cumulative bytes, not transfer rates |
+
+Installer-specific troubleshooting and security details are in **[INSTALLATION.md](INSTALLATION.md)**.
 
 ## Development
 
@@ -432,13 +427,17 @@ cargo fmt --check
 cargo build --locked
 ```
 
-## Feedback
+## Contributing / Feedback
 
 Found a bug? [Open an issue](https://github.com/kurapikanlight/docker-goo/issues) with your distribution, terminal, Docker version, steps to reproduce, and relevant error output. Remove secrets before sharing logs or inspect output.
 
-## License & credits
+Focused pull requests and reproducible bug reports are welcome.
+
+## License
 
 Released under the [MIT License](LICENSE).
+
+## Credits
 
 Created by **[Anass Iguedmi — Kafeyn](https://github.com/kurapikanlight)**.
 
