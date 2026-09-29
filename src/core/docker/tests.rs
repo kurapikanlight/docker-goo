@@ -58,19 +58,23 @@ async fn engine_api_roundtrip_and_safe_delete() {
                         ..Default::default()
                     };
                     (200, serde_json::to_vec(&vec![image]).unwrap())
-                } else if path.contains("/volumes") {
-                    let volume = bollard::models::Volume {
-                        name: "data".into(),
-                        driver: "local".into(),
-                        mountpoint: "/data".into(),
-                        ..Default::default()
-                    };
-                    (
-                        200,
-                        json!({"Volumes":[volume],"Warnings":[]})
-                            .to_string()
-                            .into_bytes(),
-                    )
+		} else if path.contains("/volumes") {
+    (
+        200,
+        json!({
+            "Volumes": [{
+                "Name": "data",
+                "Driver": "local",
+                "Mountpoint": "/data",
+                "Scope": "local",
+                "Labels": {},
+                "Options": {}
+            }],
+            "Warnings": []
+        })
+        .to_string()
+        .into_bytes(),
+    )
                 } else if path.contains("/networks") {
                     (
                         200,
