@@ -1,6 +1,7 @@
 /target/
 /tests/
 /manual-compose-test/
+/publishing/
 /TASKS.md
 /VALIDATION.md
 __pycache__/
