@@ -418,7 +418,7 @@ pub(super) fn key(
         KeyCode::Char('$') => {
             app.input = Some(InputMode::Command);
             app.dialogs.command_cursor = app.command.len();
-            app.dialogs.suggestions_hidden = false;
+            
             app.dialogs.guide = commands::GUIDE.into();
             app.dialogs.topic.clear();
         }

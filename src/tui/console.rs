@@ -260,7 +260,6 @@ pub(super) fn execute(app: &mut App, engine: Arc<dyn Engine>, tx: &mpsc::Sender<
     app.dialogs.history_index = None;
     app.command.clear();
     app.dialogs.command_cursor = 0;
-    app.dialogs.suggestions_hidden = true;
     let parsed = shell_words::split(&line);
     if let Ok(words) = &parsed {
         if words.first().is_some_and(|s| s == "cd") {
