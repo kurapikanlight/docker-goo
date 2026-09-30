@@ -5,6 +5,21 @@ edition = "2021"
 rust-version = "1.98"
 description = "Linux-first Docker Engine terminal dashboard"
 license = "MIT"
+repository = "https://github.com/kurapikanlight/docker-goo"
+readme = "README.md"
+keywords = ["docker", "containers", "tui", "linux", "compose"]
+categories = ["command-line-utilities"]
+include = [
+    "src/**",
+    "assets/*.mask",
+    "Cargo.toml",
+    "Cargo.lock",
+    "README.md",
+    "LICENSE",
+    "INSTALLATION.md",
+    "logo/*.png",
+    "previews/*.png",
+]
 
 [dependencies]
 anyhow = "1"
