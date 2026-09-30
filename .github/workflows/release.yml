@@ -57,7 +57,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: xyzzylabs/setup-zig@v1
 
       - name: Install cargo-zigbuild
         run: cargo install cargo-zigbuild --locked
