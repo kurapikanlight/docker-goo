@@ -58,23 +58,23 @@ async fn engine_api_roundtrip_and_safe_delete() {
                         ..Default::default()
                     };
                     (200, serde_json::to_vec(&vec![image]).unwrap())
-		} else if path.contains("/volumes") {
-    (
-        200,
-        json!({
-            "Volumes": [{
-                "Name": "data",
-                "Driver": "local",
-                "Mountpoint": "/data",
-                "Scope": "local",
-                "Labels": {},
-                "Options": {}
-            }],
-            "Warnings": []
-        })
-        .to_string()
-        .into_bytes(),
-    )
+                } else if path.contains("/volumes") {
+                    (
+                        200,
+                        json!({
+                            "Volumes": [{
+                                "Name": "data",
+                                "Driver": "local",
+                                "Mountpoint": "/data",
+                                "Scope": "local",
+                                "Labels": {},
+                                "Options": {}
+                            }],
+                            "Warnings": []
+                        })
+                        .to_string()
+                        .into_bytes(),
+                    )
                 } else if path.contains("/networks") {
                     (
                         200,
@@ -160,4 +160,146 @@ fn stats_decode_and_linux_memory_accounting() {
     assert_eq!(stats.memory, 1048576);
     assert_eq!(stats.limit, 2097152);
     assert_eq!((stats.rx, stats.tx), (1000, 500));
+}
+
+// Exercise the actual Engine method against a Docker HTTP boundary.
+#[tokio::test]
+async fn terminal_attachment_and_exec_requests() {
+    for (running, command, tty, stdin, paused) in [
+        (true, "auto", true, true, false),
+        (false, "auto", true, true, false),
+        (false, "/bin/bash", true, true, false),
+        (true, "/bin/bash", false, false, false),
+        (true, "/bin/sh", false, false, false),
+        (true, "python -i", false, false, false),
+        (true, "auto", false, true, false),
+        (true, "auto", true, false, false),
+        (false, "auto", false, false, false),
+        (true, "auto", true, true, true),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("terminal.sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        let requests = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+        let recorded = requests.clone();
+        let server = tokio::spawn(async move {
+            loop {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let recorded = recorded.clone();
+                tokio::spawn(async move {
+                    let mut header = Vec::new();
+                    let mut byte = [0];
+                    while !header.ends_with(b"\r\n\r\n") {
+                        if stream.read_exact(&mut byte).await.is_err() {
+                            return;
+                        }
+                        header.push(byte[0]);
+                    }
+                    let header = String::from_utf8(header).unwrap();
+                    let first = header.lines().next().unwrap().to_string();
+                    let length = header
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().unwrap())
+                        })
+                        .unwrap_or(0);
+                    let mut body = vec![0; length];
+                    stream.read_exact(&mut body).await.unwrap();
+                    recorded
+                        .lock()
+                        .await
+                        .push((first.clone(), String::from_utf8(body).unwrap()));
+                    if first.contains("/attach?") || first.contains("/exec/session/start") {
+                        stream.write_all(b"HTTP/1.1 101 UPGRADED\r\nConnection: Upgrade\r\nUpgrade: tcp\r\n\r\n").await.unwrap();
+                        let mut input = [0; 32];
+                        let _ = stream.read(&mut input).await;
+                        return;
+                    }
+                    let body = if first.contains("/json") {
+                        json!({"State":{"Running":running,"Paused":paused},"Config":{"Tty":tty,"OpenStdin":stdin}}).to_string()
+                    } else if first.contains("/exec") {
+                        json!({"Id":"session"}).to_string()
+                    } else {
+                        String::new()
+                    };
+                    let status = if body.is_empty() { 204 } else { 200 };
+                    let response = format!("HTTP/1.1 {status} OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                    stream.write_all(response.as_bytes()).await.unwrap();
+                });
+            }
+        });
+        let engine = DockerEngine::connect(Endpoint {
+            host: format!("unix://{}", socket.display()),
+            certificates: None,
+        })
+        .await
+        .unwrap();
+        let result = engine.shell("abc", command, 101, 37).await;
+        let attach = !running || command == "auto";
+        if paused || (attach && !(tty && stdin)) {
+            let error = result
+                .err()
+                .expect("must reject unsupported attachment")
+                .to_string();
+            assert!(
+                error.contains(if paused { "paused" } else { "-it" }),
+                "{error}"
+            );
+            assert_eq!(requests.lock().await.len(), 1);
+        } else {
+            let session = result.unwrap();
+            assert_eq!(session.id, if attach { "container:abc" } else { "session" });
+            let requests = requests.lock().await;
+            if attach {
+                let attach_index = requests
+                    .iter()
+                    .position(|(r, _)| r.contains("/attach?"))
+                    .unwrap();
+                let request = &requests[attach_index].0;
+                for option in [
+                    "stdin=true",
+                    "stdout=true",
+                    "stderr=true",
+                    "stream=true",
+                    "logs=false",
+                ] {
+                    assert!(request.contains(option), "{request}");
+                }
+                assert!(!requests.iter().any(|(r, _)| r.contains("/exec")));
+                let start_index = requests.iter().position(|(r, _)| r.contains("/start"));
+                if running {
+                    assert!(start_index.is_none());
+                } else {
+                    assert!(attach_index < start_index.unwrap());
+                }
+                assert!(requests
+                    .iter()
+                    .any(|(r, _)| r.contains("/containers/abc/resize?")
+                        && r.contains("w=101")
+                        && r.contains("h=37")));
+            } else {
+                assert!(!requests
+                    .iter()
+                    .any(|(r, _)| r.contains("/attach") || r.contains("/containers/abc/start")));
+                let body = &requests
+                    .iter()
+                    .find(|(r, _)| r.contains("/containers/abc/exec"))
+                    .unwrap()
+                    .1;
+                let value: serde_json::Value = serde_json::from_str(body).unwrap();
+                let expected = match command {
+                    "/bin/bash" => json!(["/bin/bash"]),
+                    "/bin/sh" => json!(["/bin/sh"]),
+                    _ => json!(["python", "-i"]),
+                };
+                assert_eq!(value["Cmd"], expected);
+                assert!(requests
+                    .iter()
+                    .any(|(r, _)| r.contains("/exec/session/resize?")));
+            }
+        }
+        server.abort();
+    }
 }

@@ -290,27 +290,19 @@ pub(super) fn key(
     if let Some((resource, command)) = app.dialogs.shell.as_mut() {
         if code == KeyCode::Enter && key.modifiers.contains(KeyModifiers::CONTROL) {
             let mut process = engine.docker_cli();
-            if resource.state == "running" {
-                process.args(["exec", "-it", &resource.id]);
-                if command == "auto" {
-                    process.args([
-                        "/bin/sh",
-                        "-c",
-                        "if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi",
-                    ]);
-                } else {
-                    match shell_words::split(command) {
-                        Ok(args) => {
-                            process.args(args);
-                        }
-                        Err(e) => {
-                            app.status = e.to_string();
-                            return true;
-                        }
-                    }
-                }
-            } else {
-                process.args(["start", "-ai", &resource.id]);
+            if resource.state == "paused" {
+                app.status =
+                    "Resume the paused container with u before opening its terminal".into();
+                return true;
+            }
+            if let Err(error) = super::shell::container_cli_args(
+                &mut process,
+                &resource.id,
+                resource.state == "running",
+                command,
+            ) {
+                app.status = error.to_string();
+                return true;
             }
             let _ = tx.try_send(Message::Terminal(process));
             app.dialogs.shell = None;
@@ -418,7 +410,7 @@ pub(super) fn key(
         KeyCode::Char('$') => {
             app.input = Some(InputMode::Command);
             app.dialogs.command_cursor = app.command.len();
-            
+
             app.dialogs.guide = commands::GUIDE.into();
             app.dialogs.topic.clear();
         }
@@ -726,7 +718,7 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
     }
     app.dialogs.native_area = None;
     if let Some((r, command)) = &app.dialogs.shell {
-        panel(f,a," Container terminal ",format!("{} · {}\n\n$ {}\n\nTab cycles auto / Bash / sh.\nBackspace and type any executable, e.g. spark-shell.\nauto prefers Bash and falls back to sh.\n\n[Enter] - Shell · [Ctrl+Enter] - Native -it\n[Esc] - Cancel · [Ctrl+D] - Detach (API shell)\n\nStopped containers must already have an interactive TTY;\nthey start and attach their existing main process.\nUse n → Ctrl+P for a new interactive container.",clean(&r.name),r.state,command),0);
+        panel(f,a," Container terminal ",format!("{} · {}\n\n$ {}\n\nTab cycles auto / Bash / sh.\nBackspace and type any executable, e.g. spark-shell.\nauto attaches to the existing main process.\nBash/sh/custom commands open a separate shell or process\nin a running container.\n\n[Enter] - Connect · [Ctrl+Enter] - Native -it\n[Esc] - Cancel · [Ctrl+D] - Detach (API terminal)\nNative attach: Ctrl+P, then Ctrl+Q to detach.\n\nAPI attachment requires a container created with -it.\nStopped containers must already have an interactive TTY;\nthey start and attach their existing main process.\nUse n → Ctrl+P for a new interactive container.",clean(&r.name),r.state,command),0);
     }
     if app.dialogs.shell.is_some() {
         let button = Rect::new(
@@ -1029,7 +1021,9 @@ pub(super) fn mouse(app: &mut App, mouse: crossterm::event::MouseEvent) -> bool 
             }
         }
     } else if !app.busy {
-        if app.dialogs.interactive_area
+        if app
+            .dialogs
+            .interactive_area
             .is_some_and(|r| r.contains((mouse.column, mouse.row).into()))
         {
             if let Some(form) = app.dialogs.form.as_mut() {

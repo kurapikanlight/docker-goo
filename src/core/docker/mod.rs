@@ -331,9 +331,12 @@ impl Engine for DockerEngine {
             !paused,
             "Resume the paused container with u before opening its terminal"
         );
-        if !running {
+        if !running || command == "auto" {
             let config = info.config.unwrap_or_default();
-            anyhow::ensure!(config.tty==Some(true)&&config.open_stdin==Some(true),"This stopped container has no persistent terminal. Use n and the Shell preset to create one; existing data is not changed.");
+            anyhow::ensure!(
+                config.tty == Some(true) && config.open_stdin == Some(true),
+                "Attachment requires a container created with -it (Tty=true and OpenStdin=true). Bash/sh can open a separate shell in a running container."
+            );
             let attached = client
                 .attach_container(
                     id,
@@ -347,9 +350,14 @@ impl Engine for DockerEngine {
                     }),
                 )
                 .await?;
-            client
-                .start_container(id, None::<StartContainerOptions<String>>)
-                .await?;
+            if !running {
+                client
+                    .start_container(id, None::<StartContainerOptions<String>>)
+                    .await?;
+            }
+            let _ = self
+                .resize_shell(&format!("container:{id}"), cols, rows)
+                .await;
             return Ok(ShellSession {
                 id: format!("container:{id}"),
                 input: attached.input,
@@ -367,16 +375,7 @@ impl Engine for DockerEngine {
                     attach_stderr: Some(true),
                     attach_stdin: Some(true),
                     tty: Some(true),
-                    cmd: Some(if command == "auto" {
-                        vec![
-                            "/bin/sh".into(),
-                            "-c".into(),
-                            "if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi"
-                                .into(),
-                        ]
-                    } else {
-                        shell_words::split(command).context("Invalid terminal command")?
-                    }),
+                    cmd: Some(shell_words::split(command).context("Invalid terminal command")?),
                     env: Some(vec![format!(
                         "TERM={}",
                         std::env::var("TERM").unwrap_or_else(|_| "xterm-256color".into())

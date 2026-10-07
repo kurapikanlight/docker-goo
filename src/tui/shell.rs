@@ -26,7 +26,7 @@ pub(super) async fn run(
     )?;
     let result = async {
         let mut stdout = tokio::io::stdout();
-        stdout.write_all(b"\r\nDocker-Goo shell | exit closes shell | Ctrl+D detaches\r\n").await?;
+        stdout.write_all(b"\r\nDocker-Goo terminal | Ctrl+D detaches | exit ends the connected process\r\n").await?;
         stdout.flush().await?;
         loop {
             tokio::select! {
@@ -96,6 +96,24 @@ fn encode_key(key: KeyEvent) -> Vec<u8> {
     }
     bytes
 }
+// Keep native Docker semantics aligned with the API terminal.
+pub(super) fn container_cli_args(
+    process: &mut std::process::Command,
+    id: &str,
+    running: bool,
+    command: &str,
+) -> Result<()> {
+    if !running {
+        process.args(["start", "-ai", id]);
+    } else if command == "auto" {
+        process.args(["attach", id]);
+    } else {
+        let args = shell_words::split(command)?;
+        process.args(["exec", "-it", id]).args(args);
+    }
+    Ok(())
+}
+
 pub(super) async fn host(terminal: &mut Screen, command: std::process::Command) -> Result<()> {
     use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
     execute!(
@@ -130,6 +148,27 @@ pub(super) async fn host(terminal: &mut Screen, command: std::process::Command) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_container_connection_commands() {
+        for (running, command, expected) in [
+            (true, "auto", vec!["attach", "abc"]),
+            (false, "auto", vec!["start", "-ai", "abc"]),
+            (false, "/bin/bash", vec!["start", "-ai", "abc"]),
+            (true, "/bin/bash", vec!["exec", "-it", "abc", "/bin/bash"]),
+            (true, "/bin/sh", vec!["exec", "-it", "abc", "/bin/sh"]),
+            (
+                true,
+                "python -c 'print(1)'",
+                vec!["exec", "-it", "abc", "python", "-c", "print(1)"],
+            ),
+        ] {
+            let mut process = std::process::Command::new("docker");
+            container_cli_args(&mut process, "abc", running, command).unwrap();
+            assert_eq!(process.get_args().collect::<Vec<_>>(), expected);
+        }
+        let mut process = std::process::Command::new("docker");
+        assert!(container_cli_args(&mut process, "abc", true, "'").is_err());
+    }
     #[test]
     fn forwards_unicode_and_control_keys() {
         assert!(is_detach(KeyEvent::new(
