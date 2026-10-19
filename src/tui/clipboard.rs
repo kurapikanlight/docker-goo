@@ -1,6 +1,48 @@
-//! Read clipboard text only after an explicit paste gesture. No polling.
+//! Access the clipboard only after an explicit copy or paste gesture. No polling.
 use super::*;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+async fn write_command(program: &str, args: &[&str], text: &str) -> Result<()> {
+    let mut child = tokio::process::Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .spawn()?;
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all(text.as_bytes()).await?;
+    drop(stdin);
+    anyhow::ensure!(child.wait().await?.success(), "Clipboard writer failed");
+    Ok(())
+}
+
+pub(super) async fn write(text: &str) -> Result<&'static str> {
+    let mut candidates: Vec<(&str, Vec<&str>)> = Vec::new();
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        candidates.push(("wl-copy", vec![]));
+    }
+    if std::env::var_os("DISPLAY").is_some() {
+        candidates.push(("xclip", vec!["-selection", "clipboard", "-in"]));
+        candidates.push(("xsel", vec!["--clipboard", "--input"]));
+    }
+    for (program, args) in candidates {
+        if let Ok(Ok(())) =
+            tokio::time::timeout(Duration::from_secs(2), write_command(program, &args, text)).await
+        {
+            return Ok("Copied selection");
+        }
+    }
+    // OSC 52 also reaches the local clipboard through supported SSH terminals.
+    use base64::Engine as _;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(text);
+    let mut stdout = tokio::io::stdout();
+    stdout
+        .write_all(format!("\x1b]52;c;{encoded}\x07").as_bytes())
+        .await?;
+    stdout.flush().await?;
+    Ok("Copy sent to terminal (OSC 52)")
+}
 
 async fn read_command(program: &str, args: &[&str]) -> Result<String> {
     let mut child = tokio::process::Command::new(program)

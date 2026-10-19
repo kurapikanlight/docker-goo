@@ -3,6 +3,7 @@ mod clipboard;
 mod console;
 mod dialogs;
 mod log_text;
+mod output;
 mod shell;
 mod theme;
 mod view;
@@ -72,6 +73,7 @@ impl Drop for Jobs {
 }
 
 enum Message {
+    OutputGesture(Result<String>),
     Clipboard(u64, Result<String>),
     Compose(Result<String>),
     ConsoleOutput(u64, String),
@@ -94,6 +96,7 @@ enum InputMode {
     Command,
 }
 struct App {
+    output: output::Output,
     clipboard_epoch: u64,
     dialogs: dialogs::Dialogs,
     snapshot: Snapshot,
@@ -132,6 +135,7 @@ struct App {
 impl App {
     fn new() -> Self {
         Self {
+            output: output::Output::default(),
             clipboard_epoch: 0,
             dialogs: dialogs::Dialogs::default(),
             snapshot: Snapshot::default(),
@@ -353,6 +357,11 @@ pub async fn run(
             message = rx.recv() => {
                 let Some(message) = message else { break; };
                 match message {
+                    Message::OutputGesture(result) => {
+                        let notice = result.unwrap_or_else(|e| format!("{e:#}"));
+                        app.status = notice.clone();
+                        app.output.notice = notice;
+                    }
                     Message::Clipboard(epoch,result) if epoch==app.clipboard_epoch=>{
                         match result {
                             Ok(text)=>dialogs::paste(&mut app,&text),
@@ -400,6 +409,24 @@ pub async fn run(
                 let mut event = event?;
                 // Ignore a delayed clipboard result after the user edits or switches targets.
                 if matches!(&event,Event::Key(_)|Event::Paste(_)|Event::Mouse(crossterm::event::MouseEvent{kind:MouseEventKind::Down(_),..})) {app.clipboard_epoch=app.clipboard_epoch.wrapping_add(1);}
+                if let Some(gesture) = app.output.event(&event) {
+                    if app.input == Some(InputMode::Command) {
+                        app.dialogs.follow_output = false;
+                    }
+                    let tx = tx.clone();
+                    match gesture {
+                        output::Gesture::Copy(text) => jobs.0.push(tokio::spawn(async move {
+                            let result = clipboard::write(&text).await.map(str::to_owned);
+                            let _ = tx.send(Message::OutputGesture(result)).await;
+                        })),
+                        output::Gesture::Open(url) => jobs.0.push(tokio::spawn(async move {
+                            let result = dialogs::open_url(url).await.map(|()| "Opened link".into());
+                            let _ = tx.send(Message::OutputGesture(result)).await;
+                        })),
+                        output::Gesture::Handled => {}
+                    }
+                    continue;
+                }
                 if clipboard::request(&mut app,&event,&tx,&mut jobs){continue;}
                 if let Event::Paste(text)=&event { dialogs::paste(&mut app,text); continue; }
                 if let Event::Mouse(mouse)=&event {

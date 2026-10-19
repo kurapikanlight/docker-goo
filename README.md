@@ -248,8 +248,11 @@ docker network ls
 - `Enter` or `Tab` accepts a selected suggestion; it does not execute it.
 - `Ctrl+S` toggles suggestions.
 - Output streams live and previous command results remain separated.
+- Drag over console output or container logs to copy the selected text. `Ctrl+C` copies an active selection; otherwise it cancels the console command.
+- Click an underlined HTTP/HTTPS link to open it in your browser. Drag over a link to copy it instead.
+- Copy uses `wl-copy` (Wayland) or `xclip`/`xsel` (X11), with a fallback to your terminal's OSC 52 clipboard support.
 - `PgUp` / `PgDn` scroll output.
-- `Ctrl+C` cancels the current console command.
+- `Ctrl+C` cancels the current console command when no text is selected.
 - `Esc` returns to the dashboard.
 - `Ctrl+O` opens a native host shell.
 

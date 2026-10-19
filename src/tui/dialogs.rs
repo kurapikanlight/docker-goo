@@ -760,6 +760,7 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
                     .div_ceil(cols[0].width.saturating_sub(2).max(1) as usize)
             })
             .sum::<usize>();
+        let mut output_area = cols[0].inner(ratatui::layout::Margin::new(1, 1));
         let max_scroll = lines
             .saturating_sub(cols[0].height.saturating_sub(2) as usize)
             .min(u16::MAX as usize) as u16;
@@ -786,7 +787,14 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
         console_panel(
             f,
             cols[1],
-            " Docker help ",
+            &format!(
+                " Docker help · {} ",
+                if app.output.notice.is_empty() {
+                    "Drag to copy · Click link to open"
+                } else {
+                    &app.output.notice
+                }
+            ),
             app.dialogs
                 .guide
                 .lines()
@@ -824,6 +832,9 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
                 cols[0].width,
                 height,
             );
+            output_area.height = output_area
+                .height
+                .min(suggestion_area.y.saturating_sub(output_area.y));
             panel(
                 f,
                 suggestion_area,
@@ -859,6 +870,13 @@ pub(super) fn draw(f: &mut ratatui::Frame, app: &mut App) {
                 }
             }
         }
+        app.output
+            .register(output_area, &app.dialogs.output, app.dialogs.output_scroll);
+        app.output.register(
+            cols[1].inner(ratatui::layout::Margin::new(1, 1)),
+            &app.dialogs.guide,
+            app.dialogs.help_scroll,
+        );
         app.dialogs.console_controls = Some(chunks[1]);
         panel(
             f,

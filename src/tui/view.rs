@@ -58,6 +58,7 @@ pub(super) fn draw(f: &mut Frame, app: &mut App, endpoint: &str) {
     app.logo_area = Rect::default();
     app.table_area = Rect::default();
     app.hits.clear();
+    app.output.begin();
     if a.width < 50 || a.height < 15 {
         label(
             f,
@@ -65,6 +66,7 @@ pub(super) fn draw(f: &mut Frame, app: &mut App, endpoint: &str) {
             inset(a, 1, 1),
             false,
         );
+        app.output.finish(f.buffer_mut());
         return;
     }
     if app.home {
@@ -72,9 +74,18 @@ pub(super) fn draw(f: &mut Frame, app: &mut App, endpoint: &str) {
     } else {
         dashboard(f, app, endpoint);
     }
+    if app.input.is_some()
+        || app.confirm.is_some()
+        || app.inspect.is_some()
+        || app.help
+        || super::dialogs::active(app)
+    {
+        app.output.begin();
+    }
     overlays(f, app);
     super::dialogs::draw(f, app);
     super::theme::apply(f, app.theme_index);
+    app.output.finish(f.buffer_mut());
     if std::env::var_os("NO_COLOR").is_some() {
         for cell in &mut f.buffer_mut().content {
             cell.set_fg(Color::White).set_bg(Color::Reset);
@@ -653,6 +664,7 @@ fn detail(f: &mut Frame, app: &mut App, a: Rect) {
         );
     }
     let content = parts[2];
+    label(f, "Drag to copy · Click link to open", parts[1], false);
     if app.detail_tab == 1 {
         let metrics=app.stats.as_ref().map(|s|format!("CPU usage   {:.1}%\nMemory      {} / {}\nNetwork RX  {}\nNetwork TX  {}\n\nNetwork totals since container start",s.cpu,bytes(s.memory),bytes(s.limit),bytes(s.rx),bytes(s.tx))).unwrap_or_else(||"Live metrics appear when the selected container is running.".into());
         f.render_widget(
@@ -674,6 +686,7 @@ fn detail(f: &mut Frame, app: &mut App, a: Rect) {
                 .map(|s| Line::raw(format!(" {}", clean(s))))
                 .collect()
         };
+        app.output.register_lines(content, &lines);
         f.render_widget(Paragraph::new(lines).style(text()), content);
     }
 }
@@ -816,6 +829,49 @@ mod tests {
         }
         app.input = Some(InputMode::Command);
         assert_eq!(super::super::console::suggestions(&app).0, vec!["docker "]);
+    }
+    #[test]
+    fn log_links_open_full_urls_even_when_clipped_and_overlays_block_clicks() {
+        use crossterm::event::{Event, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+        let mut app = App::new();
+        app.change_tab(0);
+        let url = format!("http://localhost:8080/{}", "a".repeat(150));
+        app.logs.push_back(format!("Open {url}"));
+        let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+        terminal
+            .draw(|f| draw(f, &mut app, "unix:///missing.sock"))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let (x, y) = (0..40)
+            .flat_map(|y| (0..130).map(move |x| (x, y)))
+            .find(|(x, y)| {
+                (0..7)
+                    .map(|dx| buffer[(*x + dx, *y)].symbol())
+                    .collect::<String>()
+                    == "http://"
+            })
+            .unwrap();
+        let event = |kind| {
+            Event::Mouse(MouseEvent {
+                kind,
+                column: x + 3,
+                row: y,
+                modifiers: KeyModifiers::NONE,
+            })
+        };
+        app.output
+            .event(&event(MouseEventKind::Down(MouseButton::Left)));
+        assert!(
+            matches!(app.output.event(&event(MouseEventKind::Up(MouseButton::Left))), Some(super::super::output::Gesture::Open(link)) if link == url)
+        );
+        app.help = true;
+        terminal
+            .draw(|f| draw(f, &mut app, "unix:///missing.sock"))
+            .unwrap();
+        assert!(app
+            .output
+            .event(&event(MouseEventKind::Down(MouseButton::Left)))
+            .is_none());
     }
     #[test]
     fn renders_small_standard_and_wide_terminals() {
